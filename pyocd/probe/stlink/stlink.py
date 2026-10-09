@@ -1,6 +1,7 @@
 # pyOCD debugger
 # Copyright (c) 2018-2020,2025 Arm Limited
 # Copyright (c) 2021-2022 Chris Reed
+# Copyright (c) 2026 j4rvisstant
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -370,15 +371,15 @@ class STLink(object):
             response = self._device.transfer([Commands.JTAG_COMMAND, Commands.JTAG_DRIVE_NRST, value], readSize=2)
             self._check_status(response)
 
-    def _check_status(self, response):
+    def _check_status(self, response: Union[bytes, bytearray]) -> None:
         status, = struct.unpack('<H', response)
 
         if status != Status.JTAG_OK:
             error_message = Status.get_error_message(status)
             if status in self._ERROR_CLASSES:
-                raise self._ERROR_CLASSES[status](error_message)
+                raise self._ERROR_CLASSES[status](error_message, status=status)
             else:
-                raise exceptions.ProbeError(error_message)
+                raise exceptions.ProbeError(error_message, status=status)
 
     def _clear_sticky_error(self):
         with self._lock:
@@ -433,14 +434,14 @@ class STLink(object):
                         # Clear sticky errors.
                         self._clear_sticky_error()
 
-                        exc = exceptions.TransferFaultError("read")
+                        exc = exceptions.TransferFaultError("read", status=status)
                         exc.fault_address = faultAddr
                         exc.fault_length = addr - faultAddr
                         raise exc
                     elif status in self._ERROR_CLASSES:
-                        raise self._ERROR_CLASSES[status](error_message)
+                        raise self._ERROR_CLASSES[status](error_message, status=status)
                     elif status != Status.JTAG_OK:
-                        raise exceptions.ProbeError(error_message)
+                        raise exceptions.ProbeError(error_message, status=status)
             return result
 
     def _write_mem(self, addr: int, data: Sequence[int], memcmd: int, maxtx: int, apsel: int, csw: int) -> None:
@@ -475,14 +476,14 @@ class STLink(object):
                         # Clear sticky errors.
                         self._clear_sticky_error()
 
-                        exc = exceptions.TransferFaultError("write")
+                        exc = exceptions.TransferFaultError("write", status=status)
                         exc.fault_address = faultAddr
                         exc.fault_length = addr - faultAddr
                         raise exc
                     elif status in self._ERROR_CLASSES:
-                        raise self._ERROR_CLASSES[status](error_message)
+                        raise self._ERROR_CLASSES[status](error_message, status=status)
                     elif status != Status.JTAG_OK:
-                        raise exceptions.ProbeError(error_message)
+                        raise exceptions.ProbeError(error_message, status=status)
 
     def read_mem32(self, addr: int, size: int, apsel: int, csw: int):
         assert (addr & 0x3) == 0 and (size & 0x3) == 0, "address and size must be word aligned"
