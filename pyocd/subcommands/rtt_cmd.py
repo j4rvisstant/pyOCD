@@ -6,6 +6,7 @@
 # Copyright (C) 2022 Samuel Dewan
 # Copyright (C) 2022 Zhengji Li
 # Copyright (C) 2024 Laurens Miers
+# Copyright (c) 2026 j4rvisstant
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -189,13 +190,17 @@ class RTTSubcommand(SubcommandBase):
             if kb.kbhit():
                 c: str = kb.getch()
 
-                if ord(c) == 27: # process ESC
+                if not c:
+                    # Key without a character value, e.g. an extended key on Windows:
+                    # nothing to echo and nothing to send.
+                    pass
+                elif ord(c) == 27: # process ESC
                     break
                 elif c.isprintable() or c == '\n':
                     print(c, end="", flush=True)
 
-                # add char to buffer
-                cmd += c.encode("utf-8")
+                # add char to buffer; '' encodes to b'' and leaves the buffer unchanged
+                cmd += c.encode("utf-8", errors="replace")
 
             # write buffer to target
             if not cmd:
