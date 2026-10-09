@@ -2,6 +2,7 @@
 #
 # Copyright (C) 2021 Simon D. Levy <simon.d.levy@gmail.com>
 # https://github.com/simondlevy/kbhit
+# Copyright (c) 2026 j4rvisstant
 # 
 # MIT License
 # 
@@ -84,13 +85,36 @@ class KBHit:
             termios.tcsetattr(self.fd, termios.TCSAFLUSH, self.old_term)
 
 
-    def getch(self):
+    def getch(self) -> str:
         ''' Returns a keyboard character after kbhit() has been called.
             Should not be called in the same program as getarrow().
+
+            On Windows, a key without a character value (arrow keys, Home, End,
+            Page Up/Down, Insert, Delete, function keys, Alt combinations, Shift+Tab,
+            keypad keys with NumLock off) arrives as a prefix ('\\x00' or '\\xe0')
+            followed by a scan code that the C runtime parks in its single push-back
+            slot. Both are consumed and the empty string is returned, so that callers
+            can ignore the key; the scan code is never reported as a typed character.
+            A typed character that looks like a prefix (U+00E0, small a with grave) is
+            told apart from an extended key by pushing the code unit back: that fails
+            exactly when a scan code is waiting. Every other key is returned as the
+            Unicode character the console delivered. The empty string is also returned
+            for U+0000, so that this method never returns NUL. Callers must not echo
+            the empty string, forward it, or call ord() on it.
         '''
                 
         if os.name == 'nt':
-            return msvcrt.getch().decode('utf-8')
+            c = msvcrt.getwch()
+            if c in ('\x00', '\xe0'):
+                try:
+                    msvcrt.ungetwch(c)
+                except OSError:
+                    msvcrt.getwch()  # the slot held the scan code: consume and ignore it
+                    return ''
+                msvcrt.getwch()  # the slot was free: take the pushed-back character out again
+                if c == '\x00':
+                    return ''
+            return c
         
         else:
             return sys.stdin.read(1)
@@ -139,6 +163,8 @@ if __name__ == "__main__":
 
         if kb.kbhit():
             c = kb.getch()
+            if not c:  # key without a character value, e.g. an extended key
+                continue
             if ord(c) == 27: # ESC
                 break
             print(c)
