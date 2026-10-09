@@ -1,5 +1,6 @@
 # pyOCD debugger
 # Copyright (c) 2018-2020,2025 Arm Limited
+# Copyright (c) 2026 j4rvisstant
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +14,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from typing import Any, Optional
 
 class Error(RuntimeError):
     """@brief Parent of all errors pyOCD can raise"""
@@ -34,8 +37,23 @@ class TargetSupportError(Error):
     pass
 
 class ProbeError(Error):
-    """@brief Error communicating with the debug probe"""
-    pass
+    """@brief Error communicating with the debug probe
+
+    Positional arguments passed to the constructor are passed through to the superclass'
+    constructor, and thus operate like any other standard exception class. The optional keyword-only
+    'status' argument records the numeric status code reported by the probe, for instance an ST-Link
+    firmware status code, and is exposed by the read-only 'status' property. It is None when no
+    probe status is known. The status is not part of the string form of the exception. No other
+    keyword arguments are accepted.
+    """
+    def __init__(self, *args: Any, status: Optional[int] = None) -> None:
+        super().__init__(*args)
+        self._status = status
+
+    @property
+    def status(self) -> Optional[int]:
+        """@brief Numeric status code reported by the probe, or None if not available."""
+        return self._status
 
 class ProbeDisconnected(ProbeError):
     """@brief The connection to the debug probe was lost"""
@@ -54,8 +72,23 @@ class CoreRegisterAccessError(DebugError):
     pass
 
 class TransferError(DebugError):
-    """@brief Error ocurred with a transfer over SWD or JTAG"""
-    pass
+    """@brief Error ocurred with a transfer over SWD or JTAG
+
+    Positional arguments passed to the constructor are passed through to the superclass'
+    constructor, and thus operate like any other standard exception class. The optional keyword-only
+    'status' argument records the numeric status code the probe reported for the failed transfer,
+    for instance an ST-Link firmware status code, and is exposed by the read-only 'status' property.
+    It is None when no probe status is known. The status is not part of the string form of the
+    exception. No other keyword arguments are accepted.
+    """
+    def __init__(self, *args: Any, status: Optional[int] = None) -> None:
+        super().__init__(*args)
+        self._status = status
+
+    @property
+    def status(self) -> Optional[int]:
+        """@brief Numeric status code reported by the probe, or None if not available."""
+        return self._status
 
 class TransferTimeoutError(TransferError):
     """@brief An SWD or JTAG timeout occurred"""
@@ -76,10 +109,11 @@ class TransferFaultError(TransferError):
     constructor, and thus operate like any other standard exception class. Keyword arguments of
     'fault_address' and 'length' can optionally be passed to the constructor to initialize the fault
     start address and length. Alternatively, the corresponding property setters can be used after
-    the exception is created.
+    the exception is created. The 'status' keyword argument inherited from TransferError is also
+    accepted, and records the numeric status code reported by the probe.
     """
-    def __init__(self, *args, **kwargs):
-        super(TransferFaultError, self).__init__(*args)
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super(TransferFaultError, self).__init__(*args, status=kwargs.get('status', None))
         self._address = kwargs.get('fault_address', None)
         self._length = kwargs.get('length', None)
 
